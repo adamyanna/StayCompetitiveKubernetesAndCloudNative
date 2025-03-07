@@ -1,24 +1,30 @@
 # Kubernetes Roadmap
 
-## Cloud
+## 🚀 Cloud
 
-## Producation Cloud Architecture
+### 🔥 Producation Cloud Architecture
 
 ![](./cloud_computing_architecture.jpg)
 
-## Service System Design Architecture
+---
+
+### 🔥 Service System Design Architecture
 
 ![](./systemdesign_excalidraw.svg)
 
-## Kubernetes
+---
 
-### Cluster Architecture
+## 🚀 Kubernetes
+
+### 🔥 Cluster Architecture
 
 ![](./kubernetes_deployment_architecture_excalidraw.svg)
 
-#### Control Plane - Master Nodes
+---
 
-##### kube-apiserver
+#### 💡 1. Control Plane - Master Nodes
+
+##### 📌 1.1 kube-apiserver
 
 - ```yaml
   apiVersion: v1
@@ -54,113 +60,126 @@
     - `GET /api/v1/pods?watch=true`
   - Kube-apiserver send `Server-Sent` event in real-time to kube-scheduler
 
-- kube-controller-manager
+---
 
-  - **Multiple controller in one process**
+##### 📌 1.2 kube-controller-manager
 
-  - Controller: **ensuring the desired state of resource match actual state**
+- **Multiple controller in one process**
 
-    - watching resource change in etcd via apiserver
-    - reconciling the desired state with actual state
-    - creating, updating, deleting resources to maintain stability
+- Controller: **ensuring the desired state of resource match actual state**
 
-  - | Controller               | Function                                                     |
-    | ------------------------ | ------------------------------------------------------------ |
-    | Node Controller          | detect failed nodes & kick pods                              |
-    | Replication Controller   | Ensure correct number of Pod replicas                        |
-    | Deployment Controller    | Manages Deployments, rolling updates and rollbacks           |
-    | DaemonSet Controller     | Ensures DaemonSet Pods run on every node                     |
-    | StatefulSet Controller   | Ensures ordered & unique Pod deployment for stateful apps    |
-    | Job Controller           | Ensures Jobs run once and complete successfully              |
-    | CronJob Controller       | Schedules Jobs to run periodically like cronjob in Linux     |
-    | Service Controller       | Create cloud LB for Services(cloud providers)                |
-    | EndpointSlice Controller | Managees network endpoint slices for Services                |
-    | Ingress Controller       | Manages external access via ingress rules                    |
-    | HPA Controller           | Scales Pods up/down base on CPU/Memory (Horizontal Pod Autoscaler) |
-    | PVC Controller           | Binds PersistentVolumeClaims (PVCs) to Persistent Volumes (PVs) |
-    | CSR Controller           | Handles CertificateSigningRequests(CSR) for TLS authentication |
+  - watching resource change in etcd via apiserver
+  - reconciling the desired state with actual state
+  - creating, updating, deleting resources to maintain stability
 
-  - PVs & PVCs
+- | Controller               | Function                                                     |
+  | ------------------------ | ------------------------------------------------------------ |
+  | Node Controller          | detect failed nodes & kick pods                              |
+  | Replication Controller   | Ensure correct number of Pod replicas                        |
+  | Deployment Controller    | Manages Deployments, rolling updates and rollbacks           |
+  | DaemonSet Controller     | Ensures DaemonSet Pods run on every node                     |
+  | StatefulSet Controller   | Ensures ordered & unique Pod deployment for stateful apps    |
+  | Job Controller           | Ensures Jobs run once and complete successfully              |
+  | CronJob Controller       | Schedules Jobs to run periodically like cronjob in Linux     |
+  | Service Controller       | Create cloud LB for Services(cloud providers)                |
+  | EndpointSlice Controller | Managees network endpoint slices for Services                |
+  | Ingress Controller       | Manages external access via ingress rules                    |
+  | HPA Controller           | Scales Pods up/down base on CPU/Memory (Horizontal Pod Autoscaler) |
+  | PVC Controller           | Binds PersistentVolumeClaims (PVCs) to Persistent Volumes (PVs) |
+  | CSR Controller           | Handles CertificateSigningRequests(CSR) for TLS authentication |
+  | Namespace Controller     | Maintains the existence of namespaces & Sync Namespace objects |
+  
+- **Conclusion**
 
-    - Persistent Volume
+  - Controllers work by interacting with Kubernetes apiserver
+  - Observing changes to the desired state, taking actions to reconcile the observed state with the desired state
+  - Controller use ETCD watch to monitor changes via apiserver
+  - Controllers contribute to self-healing and declarative nature of Kubernetes
+  - Enabling automatic and scalable management of apps and infrastructure
+  
+- PVs & PVCs
 
-      - storage abstraction of underlying storage(cloud/local storage)
-      - Independent to the lifecycle of Pod
-      - Provisioned by cluster admin / dynamically by StorageClass
-      - Properties: capacity, access modes, reclaim policies, storage class
+  - Persistent Volume
+
+    - storage abstraction of underlying storage(cloud/local storage)
+    - Independent to the lifecycle of Pod
+    - Provisioned by cluster admin / dynamically by StorageClass
+    - Properties: capacity, access modes, reclaim policies, storage class
+      - ReadWriteOnce
+      - ReadOnlyMany
+      - ReadWriteMany
+
+  - ```yaml
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: example-pv
+    spec:
+      capacity:
+        storage: 10Gi
+      accessModes:
         - ReadWriteOnce
-        - ReadOnlyMany
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: standard
+      hostPath:
+        path: "/mnt/data"
+    ```
+
+  - Persistent Volume Claims
+
+    - Req for storage by user
+
+      - Amount capacity needed
+      - Access mode
+        - ReadWriteOnce
         - ReadWriteMany
+        - ReadOnlyMany
+      - Storage class belongs to
 
     - ```yaml
       apiVersion: v1
-      kind: PersistentVolume
+      kind: PersistentVolumeClaim
       metadata:
-        name: example-pv
+        name: example-pvc
       spec:
-        capacity:
-          storage: 10Gi
         accessModes:
           - ReadWriteOnce
-        persistentVolumeReclaimPolicy: Retain
+        resources:
+          requests:
+            storage: 10Gi
         storageClassName: standard
-        hostPath:
-          path: "/mnt/data"
       ```
 
-    - Persistent Volume Claims
+  - Process
 
-      - Req for storage by user
+    1. Cluster admin creates a PV
+    2. Developer create a PVC requesting storage
+    3. Kubernetes control plane controller-PVC controller find matching PV & binds to PVC
+    4. Pod uses PVC to mount storage
 
-        - Amount capacity needed
-        - Access mode
-          - ReadWriteOnce
-          - ReadWriteMany
-          - ReadOnlyMany
-        - Storage class belongs to
+  - ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: example-pod
+    spec:
+      containers:
+        - name: app-container
+          image: nginx
+          volumeMounts:
+            - mountPath: "/usr/share/nginx/html"
+              name: storage-volume
+      volumes:
+        - name: storage-volume
+          persistentVolumeClaim:
+            claimName: example-pvc
+    ```
 
-      - ```yaml
-        apiVersion: v1
-        kind: PersistentVolumeClaim
-        metadata:
-          name: example-pvc
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: 10Gi
-          storageClassName: standard
-        ```
+  - Pod using PVC
 
-    - Process
+---
 
-      1. Cluster admin creates a PV
-      2. Developer create a PVC requesting storage
-      3. Kubernetes control plane controller-PVC controller find matching PV & binds to PVC
-      4. Pod uses PVC to mount storage
-
-    - ```yaml
-      apiVersion: v1
-      kind: Pod
-      metadata:
-        name: example-pod
-      spec:
-        containers:
-          - name: app-container
-            image: nginx
-            volumeMounts:
-              - mountPath: "/usr/share/nginx/html"
-                name: storage-volume
-        volumes:
-          - name: storage-volume
-            persistentVolumeClaim:
-              claimName: example-pvc
-      ```
-
-    - Pod using PVC
-
-##### Kube-scheduler
+##### 📌 1.3 Kube-scheduler
 
 ![](./kubernetes_kube_scheduler.svg)
 
@@ -210,7 +229,9 @@
     }
     ```
 
-##### ETCD
+---
+
+##### 📌 1.4 ETCD
 
 ![](./kubernetes_etcd_election_read_write.svg)
 
@@ -400,11 +421,39 @@
     - Kube-proxy **updates IPTables/IPVS rules**
     - CoreDNS dynamically resolves server names
 
-- Cloud-controller-manager
+- **Key State & Terms**
 
-  - 
+  - Follower: Listening for incoming messages from other nodes, **Heartbeat from Leader**
 
-##### Static POD
+  - Leader: Push the Heartbeat every 100ms to every follower
+
+  - Candidate: Node update to Candidate, Update it's term number & compare other Candidate incoming vote term number, and **Decided to Vote for itself or Vote highest term number node**(Compared node's Log must match current node)
+
+  - Vote Request: RPC call to all other nodes to start a election
+
+  - Election Timeout: 
+
+    - Candidate receives **Votes** from **Majority nodes** within election time, becomes a **New Leader** and send the heartbeat immediately. Otherwise, equal votes, start a random timeout, for next round of election.
+
+    - 150ms
+
+    - Administrators can tune the election timeout based on the characteristics of the deployment, such
+
+      as network latency and the desired trade-off between responsiveness and stability.
+
+  - Leader: Sending heartbeat & Log entries to all the followers.
+
+  - Term: Term is a increasing number for each candidate of cluster, Each election starts a new term.
+
+---
+
+##### 📌 1.5 Cloud-controller-manager
+
+- 
+
+---
+
+##### 📌 1.6 Static POD
 
 - Control plane services deploy as Static POD
 - Managed directly by **kubelet** locally
@@ -426,13 +475,15 @@
 - Static POD does not have ReplicaSet or Deployment
   - Only Controled by **Manifest** file content
 
+---
 
-
-#### Data Plane - Worker Nodes
+#### 💡 2. Data Plane - Worker Nodes
 
 ![](./kubernetes_data_plane.svg)
 
- ##### kubelet
+---
+
+ ##### 📌 2.1 kubelet
 
 * Running as a Linux process
 
@@ -508,7 +559,9 @@
   5. **Maintaining Desired State**
      * container or pods fails, kubelet ensures that pod will be restarted or reschedule base on api-server pod defination
 
-##### Pod
+---
+
+##### 📌 2.2 Pod
 
 * **Smallest and most basic deployable unit in Kubernetes**
 
@@ -618,9 +671,9 @@
     * **Process Management** (containered-shim)
     * **Networking** containers share same network namespace and communicate via **localhost**
 
+---
 
-
-##### kube-proxy
+##### 📌 2.3 kube-proxy
 
 * Network proxy service in Kubernetres that runs on each node
 * **DaemonSet** Pod
@@ -643,6 +696,670 @@
 * IPtables & IPVS modes
   * In iptables mode(default), kube-proxy uses iptables rules to manipulate network traffic
   * In IPVS (IP Virtual server), kube-proxy uses Linux Kernal IPVS framework for LB
+
+---
+
+##### 📌 2.4 Service
+
+* Service is an abstaction which defines a logical set of Pods and a policy by which to access them
+
+* Exposing a network application which is running on set of Pods in Kubernertes cluster.
+
+* Including business frontend & backend
+
+* Workflow
+
+  * Service API expose groups of Pods over network
+
+    * ClusterIP
+
+      * Exposes service on a cluster-internal IP
+      * Exposing service to public network using ingress
+
+    * NodePort
+
+      * Exposes service to each Nodes' IP at **Static Port**
+      * Kubernetes sets up cluster IP address to make Port accessible 
+
+    * LoadBalancer
+
+      * Setup LB rules to forward traffic
+        * Round-Robin
+        * Weighted Round-Robin
+        * Source
+        * IP-Hash
+        * URI-Hash
+        * Least response time
+        * Least connection
+
+    * ExternalName
+
+      * Maps a kubernetes service to an External DNS name
+
+      * returns a **CName record** pointing to an external domain
+
+      * To access external services **without hardcoding IPs** inside cluster
+
+      * ```yaml
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: external-db
+        spec:
+          type: ExternalName
+          externalName: db.example.com  # Maps to this external hostname
+        ```
+
+  * Define selector
+
+  * kube-proxy setup rules to forward traffic to service selected Pod
+
+* Each service object defines a logical set of endpoints
+
+  * Endpoint using to Map services to real Pods IP & Ports
+
+---
+
+##### 📌 2.5 Ingress
+
+* Entry point for external access of cluster services
+* **Ingress** allows you to use a single **public IP** and route traffic based on **URL paths or hostnames**.
+* All traffic is managed by a **single public IP**, reducing costs and complexity.
+* Ingress **does not work on its own**. You need an **Ingress Controller** to process traffic. Popular options:
+
+✅ **NGINX Ingress Controller** (Most common)
+
+✅ **Traefik** (Lightweight, built-in Let’s Encrypt support)
+
+✅ **HAProxy**
+
+✅ **AWS ALB Ingress Controller** (For EKS)
+
+✅ **GKE Ingress Controller** (For GKE)
+
+---
+
+##### 📌 2.6 egress
+
+* **Egress** controls **outgoing** traffic.
+* **Egress controls outbound traffic from Kubernetes pods.**
+* **NetworkPolicies** can **restrict** access to specific external services or IPs.
+* **Prevents unauthorized data leaks, improves security, and manages costs.**
+
+✅ **Security:** Prevent unauthorized data leaks or external access.
+
+✅ **Compliance:** Restrict traffic to trusted IPs or domains (e.g., only allow access to AWS S3, but block the public internet).
+
+✅ **Cost Management:** Prevent unnecessary cloud egress charges.
+
+✅ **Network Segmentation:** Ensure certain apps can only communicate with specific external services.
+
+---
+
+##### 📌 2.7 Storage
+
+* Volumes
+  * Share volumes across pods and to avoid data lost if container is crashed
+  * Types of Volume:
+    * configMap
+    * emptyDir
+    * hostPath
+    * PVC
+* Storage Classes
+  * A **StorageClass** defines different types of storage available in the cluster and allows dynamic provisioning of Persistent Volumes (PVs). It provides a way to manage storage, including setting parameters like **performance**, **replication**, and **provisioning**. Different types of storage can be created using different StorageClass objects.
+* Persistent Volumes
+  * Persistent Volumes
+    * storage abstraction of underlying storage(cloud/local storage)
+    * Independent to the lifecycle of Pod
+    * Provisioned by cluster admin / dynamically by StorageClass
+    * Properties: capacity, access modes, reclaim policies, storage class
+      - ReadWriteOnce
+      - ReadOnlyMany
+      - ReadWriteMany
+    * VolumeModes
+      * Filesystem - mounted into Pods into a directory
+      * Block - block device
+  * Persistent Volume Claims
+    - Req for storage by user
+
+      - Amount capacity needed
+      - Access mode
+        - ReadWriteOnce
+        - ReadWriteMany
+        - ReadOnlyMany
+      - Storage class & PVC & PV
+        - **Persistent Volumes (PVs):** When a PVC requests storage with a certain StorageClass, Kubernetes will use a matching **StorageClass** to provision a **Persistent Volume (PV)**.
+        - **Dynamic Provisioning:** If a PVC doesn’t specify a PV, Kubernetes will create a PV dynamically using the specified StorageClass.
+* Projected Volumes
+  * Project muliple sources of data into a single volume & mounted into Pods
+  * Use Case:
+    * Mounting **ConfigMaps & Secrets** together
+    * Injecting **service account tokens** for authentication
+    * Using **DownwardAPI** to expose pods and container metadata(Pod name, namespace)
+    * Allowing applications to consume configuration from multiple sources via one volume
+  * Types of Sources
+    * ConfigMaps
+    * Secrets
+    * Service Account Token
+    * DownwardAPI
+
+> PVC
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce  # Specifies how the volume can be accessed (e.g., once or multiple nodes)
+  resources:
+    requests:
+      storage: 1Gi  # Requests 1 GB of storage
+  storageClassName: standard  # Refers to a specific storage class (e.g., "standard", "fast", etc.)
+```
+
+
+
+> Storage Class
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard
+provisioner: kubernetes.io/aws-ebs  # Example provisioner for AWS EBS volumes
+parameters:
+  type: gp2  # Type of AWS EBS volume (e.g., SSD-backed)
+reclaimPolicy: Retain  # What to do with the volume after it is released
+```
+
+> Projected Volumes
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: projected-pod
+spec:
+  containers:
+    - name: app-container
+      image: myapp:latest
+      volumeMounts:
+        - name: projected-volume
+          mountPath: /etc/config  # Mounting the projected volume into the container at this path
+  volumes:
+    - name: projected-volume
+      projected:
+        sources:
+          - configMap:
+              name: my-config-map  # ConfigMap source
+          - secret:
+              secretName: my-secret  # Secret source
+          - downwardAPI:
+              items:
+                - path: "labels"
+                  fieldRef:
+                    fieldPath: metadata.labels  # Projecting metadata labels into the volume
+```
+
+---
+
+##### 📌 2.8 Configuration
+
+* **ConfigMaps**
+* **Secrets**
+* **Resource Management for Pods and Containers**
+* **Service Accounts**
+* **Role and ClusterRole**
+
+---
+
+###### 🎯 2.8.1 ConfigMaps
+
+* Store **non-sensitive configuration data** in key-value pairs
+* Enable user to **separate configuration data from containerized apps**
+* Storing:
+  * **Configuration files**
+  * environment variables
+  * Command-line arguments
+* Enable user to modify configuration s without rebuilding container images
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-configmap
+data:
+  config.key1: value1
+  config.key2: value2
+  
+# Mounting ConfigMap data as environment variables
+envFrom:
+  - configMapRef:
+    name: my-example-configmap
+    
+# Mounting ConfigMap data as file inside a container
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: my-example-configmap
+```
+
+---
+
+###### 🎯 2.8.2 Secrets
+
+* Storing sensitive data
+  * **Passwords**
+  * **OAuth tokens**
+  * **SSH Keys**
+  * **API Keys**
+  * **TLS certificates**
+* Kubernetes stores **Secrets** encoded in base64
+* Mounting **Secrets** data as environment variables
+* Mounting **Secrets** data into Pods as files
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-secret
+type: Opaque  # This is the default type
+data:
+  username: dXNlcm5hbWU=  # base64-encoded value of 'username'
+  password: cGFzc3dvcmQ=  # base64-encoded value of 'password'
+  
+  
+# Mount the secret in a Pod
+envFrom:
+  - secretRef
+      name: my-secret
+      
+# Mount the secret as a volume
+volumeMounts:
+  - name: secret-volume
+    mountPath: /etc/secret
+volumes:
+  - name: secret-volume
+    secret:
+      secretName: my-secret
+```
+
+---
+
+###### 🎯 2.8.3 Resource Management for Pods & Containers
+
+* Set resource requests & limits for containers in a Pod
+  * Ensures the containers get the resources they need to run efficiently
+  * Don't consume more resources than necessary
+* **Requests**
+  * Amount of CPU / Memory which kubernetes will **reserve** for the container
+* **Limits**
+  * Maximum amount of CPU / Memory the container can use
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: resource-management-example
+spec:
+  containers:
+    - name: app-container
+    	image: dockerhubregistry/example-app:latest
+    	resources:
+    	  requests:
+    	  	memory: "256Mi"
+    	  	cpu: "250m"
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
+```
+
+* `256Mi` is **1024 ^ 2** bytes of Memory
+  * 1 MiB =1024 * 1024 bytes
+  * 1 MB = 1000 * 1000 bytes
+* `500m` is 500 millicores, 1000 millicores = 1 CPU cores
+  * 500 m = 0.5 CPU
+  * 250 m = 0.25 CPU
+  * **The CPU resource for each individual process or thread is measured by the time slice, which the operating system kernel scheduling algorithm had scheduled to that thread.**
+
+---
+
+###### 🎯 2.8.4 Service Account
+
+* Providing an identity for Pods to securely interact with **Kubernetes API** and other cluster resources 
+* Every Pod run under a **Service Account**
+* Each **Namespace** has a default Service Account
+* **Service Account** are used for RBAC(Role-Based Access Control) to grant access
+
+| Service Acount            | User Account                                 |
+| ------------------------- | :------------------------------------------- |
+| Used by Pods              | Used by users                                |
+| Created by Kubernetes     | Created by Admin                             |
+| Authentication Uses token | Authentication Uses Passwords/Certifications |
+| Namespace-scoped          | Cluster-wide                                 |
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+	name: example-service-account
+	namespace: example-service-account
+	
+# use service account in the pod
+apiVersion: v1
+kind: Pod
+metadata:
+	name: example-pod
+spec:
+  serviceAccountName: example-service-account # link pod to service account
+  containers:
+    - name: app-container
+      image: app:latest
+```
+
+---
+
+###### 🎯 2.8.5 Role & CluterRole
+
+* Define a set of permissions which can apply to user, groups or service accounts
+* Role control access permissions inside Namespace
+* ClusterRole control access permissions across All Namespaces of entire cluster
+
+```yaml
+# Role example
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: example-role
+  namespace: example-namespace
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "create"]
+    
+# Cluster Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: 
+  name: example_name_v2
+rules:
+	- apiGroups: [""]
+		resources: ["pods"]
+	  verbs: ["*"]
+	  
+# Binding a role to a Service Account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: example-role-binding
+subjects:
+	- kind: ServiceAccount
+	  name: example-service-account
+		namespace: example-namespace
+roleRef:
+  kind: Role
+  name: example-role
+  apiGroup: rabc.authorization.k8s.io/v1
+  
+# Binding a cluster role to a Service Account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+	name: example-cluster-role-binding
+subjects:
+	- kind: ServiceAccount
+	  name: example-service-account
+	  namespace: example-name-space
+roleRef:
+	kind: ClusterRole
+	name: example-cluster-role
+	apiGroup: rbac.authorization.k8s.io/v1
+```
+
+> Notify
+>
+> Kubernetes YAML description file "-" dash is used to define a entry for a list element
+>
+> * containers
+> * rules
+> * subjects
+> * ports
+> * env
+> * volumes
+> * envFrom
+> * volumeMounts
+
+---
+
+##### 📌 2.9 Pod Creation & Scheduler Procedure (workflow)
+
+> assigns Pods to Nodes, Filtering & Scoring
+>
+> - **Identify unscheduled Pods** `spec.nodeName`
+> - **Pre-Scheduling: Filtering**
+>   - Node taints & tolerations - compatible nodes
+>   - Resource requests & limits - CPU/ Memory/ GPU
+>   - Node Selectors & Affinity - lables `nodeSelector.nodeAffinity`
+>   - Pod Affinity/ Anti-Affinity - scheduled together or apart
+>   - Node Readiness - Node's state Ready
+> - **Node Scoring** reamaining node is assigned a score 0-100
+>   - Least Allocated Priority - More CPU & Memory
+>   - Balanced Resource Allocation - Even distributed across nodes
+>   - Node Affinity Priority - Prefered node labels
+>   - Pod Topology Spread - avoid cluster hotspots
+>   - Custom Plugins & extenders - custom scoring logic
+> - **Assign Pod to Best Node**
+>   - **scheduer** binds Pod to highest-scoring node
+>   - update `spec.nodeName` in Pod definition
+>   - kubelet on chosen node pulls the container images to starts the Pod
+
+###### Terminology: Filtering
+
+* Like VM scheduling, Filter is the combination of multiple order steps workflow which removes not  compatible Nodes from initial schedule nodes list.
+
+###### Terminology: Scoring
+
+###### Terminology: Taints & Tolerations
+
+###### Terminology: Affinity & Anti-Affinity
+
+
+
+
+
+
+
+##### 📌 2.10 Scheduling, Preemption, Eviction
+
+
+
+#### 💡 3. Useful Commands & Practice
+
+```bash
+kubectl apply -f xxx.yaml
+kubectl set image/resources deployment
+kubectl rollout status deployment/statefulset/daemonset
+Kubectl rollout history deployment/statefulset/daemonset --revision=2
+Kubectl rollout undo deployment/statefulset/daemonset --to-revision=2
+Kubectl scale deployment/statefulset/daemonset --replicas=10
+```
+
+
+
+#### 💡 4. Kubernetes Q&A
+
+##### 1. What's the difference between replicationController and replicaSet?
+
+- ReplicaSet is the successor of ReplicationController, with added features and better functionality
+
+- ReplicaSet supports both equality-based & set-based selector (key=value, key in (value,...))
+
+  - ReplicationController only supports equality-based selectors
+
+- ReplicaSet supports wider range of label selectors & **fully integrated with Deployments**, Deployment provides rolling and rollback for features update.
+
+- Using deployment in Production Env instead of using ReplicaSet.
+
+- ```yaml
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: flask-app-deployment
+  spec:
+    replicas: 3
+  	selector:
+      matchExpressions:
+        - key: app
+          operator: In
+          values: [frontend, backend-api]  # Matches both "frontend" and "backend-api"
+    template:
+      metadata:
+        labels:
+          app: flask-app
+      spec:
+        containers:
+        - name: flask-app
+          image: myrepo/flask-app:v2
+          ports:
+          - containerPort: 5000	
+  ```
+
+
+
+##### 2. What's the limitation of StatefulSet controller? What’s headless service?
+
+* The storage for a given Pod must either be provisioned by a PersistentVolume Provisioner based on the requested storage class, or pre-provisioned by an admin.
+
+* Deleting and/or scaling a StatefulSet down will not delete the volumes associated with the StatefulSet. This is done to ensure data safety, which is generally more valuable than an automatic purge of all related StatefulSet resources.
+
+* StatefulSets currently require a Headless Service to be responsible for the network identity of the Pods. You are responsible for creating this Service.
+  * Headless Services provide a direct and stable way to address individual Pods, supporting the unique requirements of stateful applications. It enables peer-to-peer communication between pods which benefits with databases, distributed systems, or applications with master-worker architectures.
+
+* StatefulSets do not provide any guarantees on the termination of pods when a StatefulSet is deleted. To achieve ordered and graceful termination of the pods in the StatefulSet, it is possible to scale the StatefulSet down to 0 prior to deletion.
+
+* When using Rolling Updates with the default Pod Management Policy (OrderedReady), it's possible to get into a broken state that requires manual intervention to repair.
+
+
+
+##### 3. Kubernetes Permission & security
+
+
+
+##### SRE & Devops Q&A
+
+##### 1. What is DevOps?
+
+
+
+##### 2. deleted a large file but still have no storage space in linux, what would you do & Why?
+
+
+
+
+
+#### 5. 💡 Hands-on experience
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deployment
+  labels:
+    app: myapp
+spec: 
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+    template:
+      metadata:
+        labels:
+          app: myapp
+      spec:
+        containers:
+          - name: myapp
+            image: mydockerhubregistry/myapp:latest # custom application images
+            ports:
+              - containerPort: 8080
+            env:
+            	- name: NODE_ENV
+            	  value: "producation"
+            	- name: DATABASE_URL
+            	  valueFrom:
+            	    secretKeyRef:
+            	      name: myapp-secrets
+            	      key: database-url
+            resource:
+              requests:
+                memory: "128Mi"
+                cpu: "250m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 3000
+              initialDelaySeconds: 5
+              periodSeconds: 10
+            readinessProbe:
+              httpGet:
+                path: /ready
+                port: 3000
+              initialDelaySeconds: 3
+              periodSeconds: 5
+            	      
+```
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-service
+spec:
+  selector:
+    app: myapp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: LoadBalancer	
+```
+
+
+
+#### 6. 💡 Real-time problem solving
+
+> 1. Tell me about yourself? 2. What's your goal ？ 3. Do you know AWS and Linux instritions? 4. Algorithm problem. 5. Object-Oriented Basics. 6. What is deops?
+>
+> 2. Generic questions about Linux, Git, programming concepts, Jenkins, configuration management, continuous integration...
+>
+> 3. Interview questions [3]
+>
+>    Question 1
+>
+>    Write a Kubernetes Deployment configuration example
+>
+>    Answer question
+>    Question 2
+>
+>    What's a decorator? (Python)
+>
+>    Answer question
+>    Question 3
+>
+>    What's a list comprehension? (Python)
+>
+>    Answer question
+>
+> 4. Write a Kubernetes Deployment configuration example
+
+
 
 
 
