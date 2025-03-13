@@ -1158,17 +1158,40 @@ roleRef:
 >   - update `spec.nodeName` in Pod definition
 >   - kubelet on chosen node pulls the container images to starts the Pod
 
-###### Terminology: Filtering
+###### 🎯 2.9.1 Terminology: Filtering
 
-* Like VM scheduling, Filter is the combination of multiple order steps workflow which removes not  compatible Nodes from initial schedule nodes list.
+* Like VM scheduling, Filter is the combination of multiple order steps workflow which removes incompatible Nodes from initial schedule nodes list.
+* **Workflow Steps**
+  1. Filter incompatible nodes with taints & toleration configured
 
-###### Terminology: Scoring
+###### 🎯 2.9.2 Terminology: Scoring
 
-###### Terminology: Taints & Tolerations
+###### 🎯 2.9.3 Terminology: Taints & Tolerations
 
-###### Terminology: Affinity & Anti-Affinity
+* 🧠 **Taints**
+  * A node configuration which describes scheduled conditions for Pods
+  * Only the toleration matching Pods can be scheduled onto Taint Node
+  * **Components**
+    * **Key** - A string that identifies taint
+    * **Value** - Optional value for key
+    * **Effect** - Default behavior for toleration unmatched Pods
+      1. **NoSchedule** - Without matching toleration not Scheduling enforced
+      2. **PreferNoSchedule** - Without matching toleration avoid Scheduling not enforced
+      3. **NoExecute** - Existing pods from the node with a matching toleration are evicted from the Node
+* 🧠 Tolerations
+  * A pod configuration which describes the condition of matching **Taints**
+  * **Components**
+    * **Key** - matching taint key
+    * **Operator**
+      * **"Equal"** - key-value pair must match exactly the same
+      * **"Exists"** - Only the key is required 
+    * **Value** - use for "Equal" operator
+    * **Effect** - Must match the **Taint**'s **effect**
+    * **TolerationSeconds** (optional)
+      * Using for **NoExecute** effect
+      * Specifies how long the Pod can stay on the taint node before **being evicted**
 
-
+###### 🎯 2.9.4 Terminology: Affinity & Anti-Affinity
 
 
 
@@ -1178,7 +1201,224 @@ roleRef:
 
 
 
-#### 💡 3. Useful Commands & Practice
+#### 💡 3. Key Features 
+
+##### 📌 3.1 HPA - Horizontal Pod Auto Scaling
+
+![](./kubernetes_kube_hpa.svg) 
+
+###### 🎯 3.1.1 HPA Workflow
+
+1. Run GoRoutine single worker every 15s to request metrics, Update time period by modify `--horizontal-pod-autoscaler-sync-period`
+
+2. Use **Last 1 min metrics**, to Update **readyPodCount, ignoredPods, missingPods**
+
+   1. TargetUtilization to Update **Last 1 min metrics**
+   2. Calcaulate `UsageRatio = CurrentMetricValue / TargetMetricValue`
+
+3. `MetricDesiredReplicas = CurrentReplicas * UsageRatio`
+
+4.  is **UsageRatio**
+
+   1. Greater than 1 -> Scale Up
+   2. Smaller than 1 -> Scale Down
+
+5. Base on `MetricDesiredReplicas & MaxReplicas` to get `DesiredReplicas`
+
+   > `computeReplicasForMetrics`
+
+6. Compute `scaleDelaySeconds` from `Behavior.StabilizationWindowSeconds`
+
+7. Compute `betterRecommendation` as final Replicas to be deployed 
+
+8. Behavior
+
+   * `calculateScaleUpLimitWithScalingRules`
+   * `calculateScaleDownLimitWithBehaviors`
+
+9. `newReplicas` - `curReplicas` get current window Pod Count for either UP or Down
+
+###### 🎯 3.1.2 Key Steps
+
+* **Delay Queue**
+  * Run go routine every 15s to requests metrics & put current HPA resource back to queue for next run
+* **Last 5 min** & **Last 1 min**
+  * HPA controller will request last **5** min metrics, get the last 1 min metrics for **Replicas** Compute
+* **StabilizationWindowSeconds** as **scaleDelay**
+  * Keep previous **Recommendation**, avoid rapid scale up & down, make smallest change for Cluster Stabilization
+
+###### 🎯 3.1.3 Example Source Code
+
+```go
+// HPA GoRoutine
+func (a *HorizontalController) Run(stopCh <-chan struct{}) {
+    // ...
+    // start a single worker (we may wish to start more in the future)
+    go wait.Until(a.worker, time.Second, stopCh)
+
+    <-stopCh
+}
+```
+
+###### 🎯 3.1.4 APIs
+
+* ```
+  /apis/metrics.k8s.io
+  /apis/custom.metrics.k8s.io
+  /apis/external.metrics.k8s.io
+  ```
+
+* ```javascript
+  /api/v1/model/namespaces/{namespace}/pod-list/{podName1,podName2}/metrics/{metricName}
+  ```
+
+* ```
+  http://<node-ip>:4194/metrics
+  http://<node-ip>:10255/stats/summary
+  ```
+
+###### 🎯 3.1.5 Configuration Examples
+
+```yaml
+apiVersion: autoscaling/v2 # HPA API Version
+kind: HorizontalPodAutoscaler # Specifies that this is an HPA resource
+metadata:
+	name: example-api-hpa # The name of HPA object
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1 # The API version of the target resource (Deployment)
+    kind: Deployment # The Kind of kube resource that HPA will scale(Deployment, StatefulSet)
+    name: example-api # The name of the target deployment
+  minReplicas: 3 # Minimum number of pods to always run
+  maxReplicas: 15 # Maximum number of pods HPA can scale up to
+  
+  behavior:
+    scaleUp:
+    	stabilizationWindowSeconds: 60 # HPA will delay 60 seconds before scaling up again(scaleDelay)
+      policies:
+      	- type: Percent # Defines a scaling policy based on percentage
+      	  value: 50 # Can increase Replicas by maximum of 50% for each scaling up
+      	  periodSeconds: 30 # HPA will check every 30 seconds for scaling up
+      	- type: Pods # Defines a scaling policy based on the number of Pods
+      	  value: 4 # A maximum of 4 replicas can be added for each scaling up Event
+      	  periodSeconds: 30 # Scaling check interval of policy
+    
+    scaleDown:
+    	stabilizationWindowSeconds: 300 # HPA will delay 5 min for every scale down event
+    	policies:
+    	  - type: Percent
+    	    value: 30
+    	    periodSeconds: 60
+    	  - type: Pods
+    	    value: 2
+    	    periodSeconds: 60
+    	    
+  metrics:
+    - type: Resource # Metric based on pod resources
+      resource:
+        name: CPU # Trageting CPU utilization
+        target:
+        	type: Utilization # Uses percentage-based CPU usage as targeted metric
+        	averageUtilization: 55 # Scale up if usage exceeds 55%
+     - type: Pods # Custom metric based on application performance 
+       pods: 
+         metric:
+           name: http_requests_per_second # metric name for RPS rate
+         target:
+           type: AverageValue # Uses a absolute value rather than a percentage
+           avrageValue: 3000 # Scale up if Pods handling 3000 RPS
+  
+```
+
+###### 🎯 3.1.6
+
+[github_page_reference](https://adamyanna.github.io/docs/archives/2025/2025-03-12-kubernetes-hpa-controller-review/)
+
+##### 📌 3.2 Pod Disruption Budget (PDB)
+
+* Pod Disruption Budget is a Kube resource for **Disruption Controller**
+* When a Pod Eviction is requested, the **Eviction API** checks the PDB
+* The Disruption Controller ensures that the eviction does not violate minAvailable & maxAvailable rules in PDB
+* if evicting a pod would violate  the PDB policy, the **Disruption Controller** prevents the eviction
+* If enough Pods remain available, it allows the eviction
+
+
+
+###### 🎯 3.2.1 Key Features
+
+🚨 **Protects Availability**
+
+- Ensures that a specified number of Pods remain running while disruption occur
+
+🚨 **Controls Voluntary Disruptions**
+
+* Limits disruptions caused by evictions
+  * node drains
+  * rolling updates
+  * cluster autoscaling
+
+🚨 **Not for Involuntary Disruptions**
+
+* Dose not protect
+  * crashes
+  * node failures
+  * OOM
+
+​	
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: example-app-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: example-app
+```
+
+###### 🎯  **Use Cases**
+
+- Ensuring HA application does not go below its required replicas
+- Preventing **All Pods** from being evicted during node maintenance
+- Maintaining **service reliability** in stateful application
+  - databases
+  - Queues
+
+🔹The **Pod Disruption Budget (PDB)** resource is primarily used by **Kubernetes controllers** and **cluster administrators** to manage voluntary disruptions. Here are the key components that use or interact with PDB:
+
+
+
+🔹**Kubernetes Controllers & Components**
+
+- **Kubernetes API Server**: Stores and manages PDB definitions.
+- **Kubernetes Eviction API**: Checks PDB rules before allowing pod evictions.
+- **Cluster Autoscaler**: Respects PDB while scaling down nodes.
+- **Kubelet & Node Controller**: Uses PDB to prevent disrupting too many critical pods during voluntary disruptions.
+
+
+
+🔹 **Cluster Maintenance Tools**
+
+- **kubectl drain**: When draining a node (e.g., for maintenance), kubectl drain ensures that PDB is respected. If too many disruptions would occur, the drain process is blocked.
+- **Node Upgrades (Kubernetes Upgrade Process)**: When nodes are replaced/upgraded, Kubernetes respects PDB to avoid excessive downtime.
+
+
+
+🔹**Higher-Level Kubernetes Components**
+
+- **Deployment, StatefulSet, DaemonSet Controllers**: These controllers ensure rolling updates do not violate PDB rules.
+- **Custom Controllers (Operators)**: Some Kubernetes operators (e.g., database operators like PostgreSQL or Elasticsearch) use PDB to manage safe pod disruptions.
+
+
+
+🔹**External Tools & Services**
+
+- **Cluster Management Services (e.g., GKE, EKS, AKS)**: Managed Kubernetes services consider PDB when performing automated upgrades or scaling.
+- **CI/CD Pipelines**: Some deployment pipelines (e.g., ArgoCD, FluxCD) may integrate PDB checks to ensure safe application updates.
+
+Useful Commands & Practice 
 
 ```bash
 kubectl apply -f xxx.yaml
@@ -1361,7 +1601,30 @@ spec:
 
 
 
+#### 💡 7. Kubernetes Networking (e.g., CNI plugins, Network Policies)
+
+#### 💡 8. Advanced Kubernetes Security (e.g., Pod Security Policies, RBAC in detail)
+
+#### 💡 9. Kubernetes Monitoring and Logging (e.g., Prometheus, Grafana, ELK stack)
+
+#### 💡 10. Kubernetes Operators and Custom Resource Definitions (CRDs)
+
+#### 💡 11. Kubernetes on different cloud providers (e.g., EKS, GKE, AKS specifics)
+
+#### 💡 12. Kubernetes Multi-cluster management and Federation
 
 
 
 
+
+
+
+
+
+
+
+​       
+
+
+
+   
