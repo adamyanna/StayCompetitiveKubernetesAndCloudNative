@@ -1759,32 +1759,9 @@ spec:
 
 
 
-#### 6. 💡 Real-time problem solving
+#### 6. 💡 Kubernetes problem-solving & trouble-shooting
 
-> 1. Tell me about yourself? 2. What's your goal ？ 3. Do you know AWS and Linux instritions? 4. Algorithm problem. 5. Object-Oriented Basics. 6. What is deops?
->
-> 2. Generic questions about Linux, Git, programming concepts, Jenkins, configuration management, continuous integration...
->
-> 3. Interview questions [3]
->
->    Question 1
->
->    Write a Kubernetes Deployment configuration example
->
->    Answer question
->    Question 2
->
->    What's a decorator? (Python)
->
->    Answer question
->    Question 3
->
->    What's a list comprehension? (Python)
->
->    Answer question
->
-> 4. Write a Kubernetes Deployment configuration example
-
+![](./kubernetes_trouble_shooting_roadmap.png)
 
 
 #### 💡 7. Kubernetes Networking (e.g., CNI plugins, Network Policies)
@@ -1798,18 +1775,6 @@ spec:
 #### 💡 11. Kubernetes on different cloud providers (e.g., EKS, GKE, AKS specifics)
 
 #### 💡 12. Kubernetes Multi-cluster management and Federation
-
-
-
-
-
-
-
-
-
-
-
-​       
 
 
 
