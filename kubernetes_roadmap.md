@@ -1762,7 +1762,9 @@ spec:
 #### 6. 💡 Kubernetes problem-solving & trouble-shooting
 
 ![](./kubernetes_trouble_shooting_roadmap.png)
+![](./workload_of_kubernetes_resource_management.png)
 
+![TODO-kubernetes pod status update]()
 
 #### 💡 7. Kubernetes Networking (e.g., CNI plugins, Network Policies)
 
